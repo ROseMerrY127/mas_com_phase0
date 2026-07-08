@@ -1,0 +1,185 @@
+from __future__ import annotations
+
+import argparse
+import asyncio
+from collections import Counter
+from datetime import datetime, timezone
+from decimal import Decimal
+import json
+from pathlib import Path
+import random
+import sys
+from typing import Any
+
+from dotenv import load_dotenv
+import yaml
+
+from .agents import build_model, run_four_agent_independent, run_mas_identity, run_single_agent
+from .data import load_gsm8k
+from .evaluation import approx_tokens, extract_gold_answer, extract_last_number, is_correct
+from .router import IdentityRouter
+
+
+def _load_config(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as handle:
+        data = yaml.safe_load(handle) or {}
+    if not isinstance(data, dict):
+        raise ValueError("Phase0 config must be a YAML mapping")
+    return data
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+
+
+def _majority_vote(predictions: list[Decimal | None]) -> tuple[Decimal | None, dict[str, Any]]:
+    valid = [prediction for prediction in predictions if prediction is not None]
+    if not valid:
+        return None, {"counts": {}, "top_count": 0, "has_strict_majority": False, "tie_broken": False}
+
+    counts = Counter(valid)
+    top_count = max(counts.values())
+    tied = {prediction for prediction, count in counts.items() if count == top_count}
+    voted = next(prediction for prediction in valid if prediction in tied)
+    return voted, {
+        "counts": {str(prediction): count for prediction, count in counts.items()},
+        "top_count": top_count,
+        "has_strict_majority": top_count > len(predictions) / 2,
+        "tie_broken": len(tied) > 1,
+    }
+
+
+async def run_phase0(args: argparse.Namespace) -> Path:
+    load_dotenv()
+    config = _load_config(Path(args.config))
+
+    data_path = Path(args.data_path or config.get("data_path", "gsm8K/test-00000-of-00001.parquet"))
+    sample_size = args.sample_size if args.sample_size is not None else int(config.get("sample_size", 50))
+    seed = int(args.seed if args.seed is not None else config.get("seed", 0))
+    model_name = str(args.model or config.get("model", "gpt-4o-mini"))
+    temperature = float(config.get("temperature", 0.2) if args.temperature is None else args.temperature)
+    max_tokens = int(config.get("max_tokens", 1024) if args.max_tokens is None else args.max_tokens)
+    continue_on_error = bool(args.continue_on_error or config.get("continue_on_error", False))
+
+    random.seed(seed)
+    examples = load_gsm8k(data_path, sample_size=sample_size)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    model = build_model(model=model_name, temperature=temperature, max_tokens=max_tokens)
+
+    output_root = Path(args.output_dir or config.get("output_dir", "runs"))
+    run_dir = output_root / f"phase0_{timestamp}"
+    run_dir.mkdir(parents=True, exist_ok=False)
+    router = IdentityRouter(run_id=run_dir.name)
+    predictions: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+
+    try:
+        for example in examples:
+            gold = extract_gold_answer(example.answer)
+            try:
+                single = await run_single_agent(example.question, model)
+                single_pred = extract_last_number(single.content)
+                single_ok = is_correct(single_pred, gold)
+
+                mas_output = await run_mas_identity(
+                    question_id=example.question_id,
+                    question=example.question,
+                    model=model,
+                    router=router,
+                )
+                mas_pred = extract_last_number(mas_output)
+                mas_ok = is_correct(mas_pred, gold)
+                router.backfill_rewards(question_id=example.question_id, final_correct=mas_ok)
+
+                majority = await run_four_agent_independent(example.question, model)
+                majority_agent_predictions = [extract_last_number(agent.content) for agent in majority.agents]
+                majority_pred, vote_info = _majority_vote(majority_agent_predictions)
+                majority_ok = is_correct(majority_pred, gold)
+
+                predictions.append(
+                    {
+                        "question_id": example.question_id,
+                        "gold_answer": str(gold) if gold is not None else None,
+                        "single_agent_prediction": str(single_pred) if single_pred is not None else None,
+                        "single_agent_correct": single_ok,
+                        "mas_prediction": str(mas_pred) if mas_pred is not None else None,
+                        "mas_correct": mas_ok,
+                        "four_agent_predictions": [
+                            str(prediction) if prediction is not None else None
+                            for prediction in majority_agent_predictions
+                        ],
+                        "four_agent_majority_prediction": str(majority_pred) if majority_pred is not None else None,
+                        "four_agent_majority_correct": majority_ok,
+                        "four_agent_vote": vote_info,
+                        "approx_single_agent_tokens": approx_tokens(single.content),
+                        "approx_four_agent_tokens": sum(approx_tokens(agent.content) for agent in majority.agents),
+                    }
+                )
+            except Exception as exc:  # noqa: BLE001 - preserve per-example failure in experiment logs.
+                error = {"question_id": example.question_id, "error": repr(exc)}
+                errors.append(error)
+                if not continue_on_error:
+                    raise
+    finally:
+        await model.close()
+
+    total = len(predictions)
+    single_correct = sum(1 for row in predictions if row["single_agent_correct"])
+    mas_correct = sum(1 for row in predictions if row["mas_correct"])
+    majority_correct = sum(1 for row in predictions if row["four_agent_majority_correct"])
+    traces = router.as_dicts()
+    approx_token_total = sum(row.get("approx_input_tokens", 0) + row.get("approx_output_tokens", 0) for row in traces)
+    approx_token_total += sum(
+        row.get("approx_single_agent_tokens", 0) + row.get("approx_four_agent_tokens", 0)
+        for row in predictions
+    )
+
+    summary = {
+        "num_examples": total,
+        "requested_sample_size": sample_size,
+        "single_agent_accuracy": single_correct / total if total else 0.0,
+        "mas_identity_accuracy": mas_correct / total if total else 0.0,
+        "four_agent_majority_accuracy": majority_correct / total if total else 0.0,
+        "mas_beats_single_agent": mas_correct > single_correct,
+        "four_agent_majority_beats_mas_identity": majority_correct > mas_correct,
+        "four_agent_majority_ties_mas_identity": majority_correct == mas_correct,
+        "approx_tokens": approx_token_total,
+        "model": model_name,
+        "data_path": str(data_path),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "results": predictions,
+        "errors": errors,
+    }
+
+    _write_json(run_dir / "summary_4independent.json", summary)
+    return run_dir
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Run Phase0 identity-router GSM8K experiment.")
+    parser.add_argument("--config", default="config/phase0.yaml")
+    parser.add_argument("--data-path")
+    parser.add_argument("--sample-size", type=int)
+    parser.add_argument("--seed", type=int)
+    parser.add_argument("--model")
+    parser.add_argument("--temperature", type=float)
+    parser.add_argument("--max-tokens", type=int)
+    parser.add_argument("--output-dir")
+    parser.add_argument("--continue-on-error", action="store_true")
+    return parser
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    try:
+        run_dir = asyncio.run(run_phase0(args))
+    except Exception as exc:  # noqa: BLE001 - CLI should print a concise actionable error.
+        print(f"Phase0 failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"Phase0 outputs written to: {run_dir}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
