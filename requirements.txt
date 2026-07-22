@@ -1,8 +1,9 @@
 pyautogen>=0.10,<0.11
 autogen-core>=0.6,<0.7
 autogen-ext[openai]>=0.6,<0.7
-openai>=1.93,<2
+openai>=2.29,<3
 python-dotenv>=1.0,<2
+pydantic>=2.8,<3
 PyYAML>=6.0,<7
 pandas>=2.2,<3
 pyarrow>=16,<22
