@@ -34,6 +34,12 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
             handle.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
 
 
+def _append_jsonl(path: Path, row: dict[str, Any]) -> None:
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+        handle.flush()
+
+
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
 
@@ -43,7 +49,8 @@ async def run_phase0(args: argparse.Namespace) -> Path:
     config = _load_config(Path(args.config))
 
     data_path = Path(args.data_path or config.get("data_path", "gsm8K/test-00000-of-00001.parquet"))
-    sample_size = args.sample_size if args.sample_size is not None else int(config.get("sample_size", 50))
+    config_sample_size = config.get("sample_size", 50)
+    sample_size = args.sample_size if args.sample_size is not None else None if config_sample_size is None else int(config_sample_size)
     seed = int(args.seed if args.seed is not None else config.get("seed", 0))
     model_name = str(args.model or config.get("model", "gpt-4o-mini"))
     temperature = float(config.get("temperature", 0.2) if args.temperature is None else args.temperature)
@@ -96,7 +103,6 @@ async def run_phase0(args: argparse.Namespace) -> Path:
         }
 
         _write_jsonl(run_dir / "traces.jsonl", traces)
-        _write_jsonl(run_dir / "predictions.jsonl", predictions)
         _write_json(run_dir / "summary.json", summary)
 
     try:
@@ -117,23 +123,24 @@ async def run_phase0(args: argparse.Namespace) -> Path:
                 mas_ok = is_correct(mas_pred, gold)
                 router.backfill_rewards(question_id=example.question_id, final_correct=mas_ok)
 
-                predictions.append(
-                    {
-                        "question_id": example.question_id,
-                        "question": example.question,
-                        "gold_answer": str(gold) if gold is not None else None,
-                        "single_agent_output": single.content,
-                        "single_agent_prediction": str(single_pred) if single_pred is not None else None,
-                        "single_agent_correct": single_ok,
-                        "mas_output": mas_output,
-                        "mas_prediction": str(mas_pred) if mas_pred is not None else None,
-                        "mas_correct": mas_ok,
-                    }
-                )
+                prediction = {
+                    "question_id": example.question_id,
+                    "question": example.question,
+                    "gold_answer": str(gold) if gold is not None else None,
+                    "single_agent_output": single.content,
+                    "single_agent_prediction": str(single_pred) if single_pred is not None else None,
+                    "single_agent_correct": single_ok,
+                    "mas_output": mas_output,
+                    "mas_prediction": str(mas_pred) if mas_pred is not None else None,
+                    "mas_correct": mas_ok,
+                }
+                predictions.append(prediction)
+                _append_jsonl(run_dir / "predictions.jsonl", prediction)
                 write_outputs()
             except Exception as exc:  # noqa: BLE001 - preserve per-example failure in experiment logs.
                 error = {"question_id": example.question_id, "error": repr(exc)}
                 errors.append(error)
+                _append_jsonl(run_dir / "errors.jsonl", error)
                 write_outputs()
                 if not continue_on_error:
                     raise

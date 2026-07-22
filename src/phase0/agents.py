@@ -15,6 +15,18 @@ class LLMResponse:
     latency_ms: int
 
 
+@dataclass(frozen=True)
+class MajorityAgentResult:
+    role: str
+    content: str
+    latency_ms: int
+
+
+@dataclass(frozen=True)
+class MajorityVoteResult:
+    agents: tuple[MajorityAgentResult, ...]
+
+
 class ChatModel:
     def __init__(
         self,
@@ -110,6 +122,46 @@ async def _agent_call(model: ChatModel, *, role: str, system: str, user: str) ->
     return await model.complete(system=system, user=user, source=role)
 
 
+async def run_four_agent_independent(question: str, model: ChatModel) -> MajorityVoteResult:
+    """Run four independent solvers; the caller extracts answers and applies majority vote."""
+    system = (
+        "You solve grade-school math problems independently. Reason carefully, do not rely on other agents, "
+        "and end with exactly 'Final answer: <number>'."
+    )
+    prompts = (
+        (
+            "IndependentAgent1",
+            "Use straightforward arithmetic reasoning.",
+        ),
+        (
+            "IndependentAgent2",
+            "Decompose the problem into explicit subproblems before calculating.",
+        ),
+        (
+            "IndependentAgent3",
+            "Work backward or verify intermediate quantities where useful.",
+        ),
+        (
+            "IndependentAgent4",
+            "Solve with a concise equation-based approach.",
+        ),
+    )
+    tasks = [
+        _agent_call(
+            model,
+            role=role,
+            system=system,
+            user=f"Problem:\n{question}\n\n{instruction}\nEnd with 'Final answer: <number>'.",
+        )
+        for role, instruction in prompts
+    ]
+    responses = await asyncio.gather(*tasks)
+    agents = tuple(
+        MajorityAgentResult(role=role, content=response.content, latency_ms=response.latency_ms)
+        for (role, _), response in zip(prompts, responses)
+    )
+    return MajorityVoteResult(agents=agents)
+    
 async def run_mas_identity(*, question_id: int, question: str, model: ChatModel, router: IdentityRouter) -> str:
     planner_user = f"Problem:\n{question}\n\nCreate a concise solving plan for two independent solvers."
     planner = await _agent_call(
