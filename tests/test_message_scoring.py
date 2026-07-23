@@ -20,6 +20,7 @@ from phase0_PRM800K.message_scoring import (
     ModelScore,
     OpenAIMessageScorer,
     ScoreAssessment,
+    _token_cost_score,
     load_examples,
     prepare_messages,
     run_scoring,
@@ -166,6 +167,16 @@ def test_score_contract_rejects_inconsistent_levels_and_normalizes_in_output() -
         assert f"- {level}:" in RUBRIC_PROMPT
 
 
+def test_token_cost_score_is_continuous_and_clipped_at_cutoff() -> None:
+    assert _token_cost_score(0, 30.0) == 1.0
+    assert _token_cost_score(15, 30.0) == 0.5
+    assert _token_cost_score(30, 30.0) == 0.0
+    assert _token_cost_score(31, 30.0) == 0.0
+
+    with pytest.raises(ValueError, match="non-negative"):
+        _token_cost_score(-1, 30.0)
+
+
 def test_prepare_messages_uses_only_prior_non_control_recipient_history() -> None:
     rows = [
         _message("m1", sender="Input", recipient="Planner", kind="input", content="Compute 20 + 22."),
@@ -292,7 +303,54 @@ def test_run_scoring_writes_scores_and_resumes_exact_key(tmp_path: Path) -> None
     assert rows[0]["correctness_score"] == 1.0
     assert rows[0]["downstream_value_level"] == 3
     assert rows[0]["downstream_value_score"] == 0.75
+    assert rows[0]["message_approx_tokens"] == 3
+    assert rows[0]["token_cost_score"] == pytest.approx(1 / 3)
+    assert rows[0]["token_cost_reference_longest_tokens"] == 3
+    assert rows[0]["token_cost_reference_multiplier"] == 1.5
+    assert rows[0]["token_cost_cutoff_tokens"] == 4.5
     assert rows[0]["rubric_version"] == "v1"
+
+
+def test_resume_recalibrates_token_cost_without_rescoring_existing_rows(tmp_path: Path) -> None:
+    messages = tmp_path / "messages.jsonl"
+    splits = tmp_path / "splits"
+    output = tmp_path / "scores"
+    _write_jsonl(splits / "train.jsonl", [_example()])
+    short = _message(
+        "m1",
+        sender="Planner",
+        recipient="SolverA",
+        kind="plan",
+        content="a" * 40,
+    )
+    _write_jsonl(messages, [short])
+    scorer = FakeScorer()
+    args = _args(messages, splits, output)
+
+    asyncio.run(run_scoring(args, scorer=scorer))
+    long = _message(
+        "m2",
+        sender="SolverA",
+        recipient="Planner",
+        kind="solver_step",
+        content="b" * 80,
+    )
+    _write_jsonl(messages, [short, long])
+    summary = asyncio.run(run_scoring(args, scorer=scorer))
+
+    assert scorer.calls == 2
+    assert summary["completed_existing"] == 1
+    assert summary["completed_new"] == 1
+    assert summary["token_cost_rows_updated"] == 1
+    rows = [
+        json.loads(line)
+        for line in (output / "message_scores.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    latest_short = [row for row in rows if row["message_id"] == "m1"][-1]
+    assert latest_short["message_approx_tokens"] == 10
+    assert latest_short["token_cost_reference_longest_tokens"] == 20
+    assert latest_short["token_cost_cutoff_tokens"] == 30.0
+    assert latest_short["token_cost_score"] == pytest.approx(2 / 3)
 
 
 def test_dry_run_needs_no_api_key_and_reports_dynamic_scope(tmp_path: Path) -> None:
@@ -313,4 +371,6 @@ def test_dry_run_needs_no_api_key_and_reports_dynamic_scope(tmp_path: Path) -> N
     assert summary["total_input_messages"] == 3
     assert summary["eligible_messages"] == 2
     assert summary["eligible_by_kind"] == {"plan": 1, "solver_step": 1}
+    assert summary["token_cost_reference_longest_tokens"] == 1
+    assert summary["token_cost_cutoff_tokens"] == 1.5
     assert not (tmp_path / "unused").exists()

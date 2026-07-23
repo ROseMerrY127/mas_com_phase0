@@ -17,14 +17,18 @@ from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpe
 from pydantic import BaseModel, model_validator
 from tqdm import tqdm
 
+from phase0.evaluation import approx_tokens
+
 
 RUBRIC_VERSION = "v1"
+TOKEN_COST_VERSION = "linear_clipped_v1"
+TOKEN_COST_REFERENCE_MULTIPLIER = 1.5
 SCORABLE_KINDS = frozenset({"plan", "solver_step", "judge_feedback"})
 REASONING_EFFORTS = ("none", "low", "medium", "high", "xhigh", "max")
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MERGED_DATA_DIR = (
     REPOSITORY_ROOT
-    / "通信记录"
+    / "MessageRecord"
     / "phase0_PRM800K_parallel_20260709T151013Z"
     / "merged"
 )
@@ -110,6 +114,12 @@ class PreparedMessage:
 
 
 @dataclass(frozen=True)
+class TokenCostCalibration:
+    longest_message_tokens: int
+    cutoff_tokens: float
+
+
+@dataclass(frozen=True)
 class ModelScore:
     assessment: ScoreAssessment
     response_id: str | None = None
@@ -121,6 +131,44 @@ class ModelScore:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _message_tokens(row: dict[str, Any]) -> int:
+    return approx_tokens(str(row.get("content") or ""))
+
+
+def _build_token_cost_calibration(prepared: list[PreparedMessage]) -> TokenCostCalibration:
+    longest_message_tokens = max(
+        (_message_tokens(item.row) for item in prepared),
+        default=0,
+    )
+    return TokenCostCalibration(
+        longest_message_tokens=longest_message_tokens,
+        cutoff_tokens=longest_message_tokens * TOKEN_COST_REFERENCE_MULTIPLIER,
+    )
+
+
+def _token_cost_score(message_tokens: int, cutoff_tokens: float) -> float:
+    if message_tokens < 0:
+        raise ValueError("message_tokens must be non-negative")
+    if cutoff_tokens <= 0:
+        return 1.0 if message_tokens == 0 else 0.0
+    return max(0.0, min(1.0, 1.0 - message_tokens / cutoff_tokens))
+
+
+def _token_cost_fields(
+    prepared: PreparedMessage,
+    calibration: TokenCostCalibration,
+) -> dict[str, Any]:
+    message_tokens = _message_tokens(prepared.row)
+    return {
+        "message_approx_tokens": message_tokens,
+        "token_cost_score": _token_cost_score(message_tokens, calibration.cutoff_tokens),
+        "token_cost_version": TOKEN_COST_VERSION,
+        "token_cost_reference_longest_tokens": calibration.longest_message_tokens,
+        "token_cost_reference_multiplier": TOKEN_COST_REFERENCE_MULTIPLIER,
+        "token_cost_cutoff_tokens": calibration.cutoff_tokens,
+    }
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -320,6 +368,8 @@ class OpenAIMessageScorer:
         self.request_retries = max(0, request_retries)
         self.retry_backoff_seconds = max(0.0, retry_backoff_seconds)
         self.client = client or AsyncOpenAI(api_key=api_key)
+
+    @staticmethod
     def build_prompt_cache_key(prepared: PreparedMessage) -> str:
         row = prepared.row
         raw_key = (
@@ -383,6 +433,7 @@ def _result_row(
     *,
     requested_model: str,
     reasoning_effort: str,
+    token_cost_calibration: TokenCostCalibration,
 ) -> dict[str, Any]:
     row = prepared.row
     assessment = score.assessment
@@ -418,6 +469,7 @@ def _result_row(
         "input_tokens": score.input_tokens,
         "output_tokens": score.output_tokens,
         "total_tokens": score.total_tokens,
+        **_token_cost_fields(prepared, token_cost_calibration),
         "scored_at": _utc_now(),
     }
 
@@ -452,8 +504,11 @@ def _build_summary(
     completed_rows: list[dict[str, Any]],
     new_rows: list[dict[str, Any]],
     errors: list[dict[str, Any]],
+    token_cost_calibration: TokenCostCalibration,
+    token_cost_rows_updated: int,
 ) -> dict[str, Any]:
     all_rows = completed_rows + new_rows
+    token_cost_scores = [float(row["token_cost_score"]) for row in all_rows]
     return {
         "messages_path": str(Path(args.messages).resolve()),
         "splits_dir": str(Path(args.splits_dir).resolve()),
@@ -474,6 +529,16 @@ def _build_summary(
         "completed_new": len(new_rows),
         "failed": len(errors),
         "pending": max(0, len(prepared) - len(all_rows) - len(errors)),
+        "token_cost_version": TOKEN_COST_VERSION,
+        "token_cost_reference_longest_tokens": token_cost_calibration.longest_message_tokens,
+        "token_cost_reference_multiplier": TOKEN_COST_REFERENCE_MULTIPLIER,
+        "token_cost_cutoff_tokens": token_cost_calibration.cutoff_tokens,
+        "token_cost_rows_updated": token_cost_rows_updated,
+        "token_cost_score_min": min(token_cost_scores, default=None),
+        "token_cost_score_max": max(token_cost_scores, default=None),
+        "token_cost_score_mean": (
+            sum(token_cost_scores) / len(token_cost_scores) if token_cost_scores else None
+        ),
         "correctness_level_distribution": dict(Counter(str(row["correctness_level"]) for row in all_rows)),
         "downstream_value_level_distribution": dict(
             Counter(str(row["downstream_value_level"]) for row in all_rows)
@@ -487,6 +552,7 @@ def _build_summary(
 async def run_scoring(args: argparse.Namespace, scorer: Any | None = None) -> dict[str, Any]:
     message_rows = _read_jsonl(Path(args.messages))
     prepared = prepare_messages(message_rows, load_examples(args.splits_dir), limit=args.limit)
+    token_cost_calibration = _build_token_cost_calibration(prepared)
     if args.dry_run:
         summary = {
             "messages_path": str(Path(args.messages).resolve()),
@@ -494,6 +560,12 @@ async def run_scoring(args: argparse.Namespace, scorer: Any | None = None) -> di
             "total_input_messages": len(message_rows),
             "eligible_messages": len(prepared),
             "eligible_by_kind": dict(Counter(str(item.row.get("kind")) for item in prepared)),
+            "token_cost_version": TOKEN_COST_VERSION,
+            "token_cost_reference_longest_tokens": (
+                token_cost_calibration.longest_message_tokens
+            ),
+            "token_cost_reference_multiplier": TOKEN_COST_REFERENCE_MULTIPLIER,
+            "token_cost_cutoff_tokens": token_cost_calibration.cutoff_tokens,
             "dry_run": True,
         }
         print(json.dumps(summary, ensure_ascii=False, indent=2))
@@ -520,12 +592,17 @@ async def run_scoring(args: argparse.Namespace, scorer: Any | None = None) -> di
     completed_lookup = _matching_completed(_read_completed_rows(scores_path), model=args.model)
     existing: list[dict[str, Any]] = []
     pending: list[PreparedMessage] = []
+    token_cost_rows_updated = 0
     for item in prepared:
         row = completed_lookup.get(_resume_key(str(item.row["message_id"]), args.model, item.prompt_hash))
         if row is None:
             pending.append(item)
         else:
-            existing.append(row)
+            updated_row = {**row, **_token_cost_fields(item, token_cost_calibration)}
+            if updated_row != row:
+                _append_jsonl(scores_path, updated_row)
+                token_cost_rows_updated += 1
+            existing.append(updated_row)
 
     started_at = _utc_now()
     new_rows: list[dict[str, Any]] = []
@@ -543,6 +620,7 @@ async def run_scoring(args: argparse.Namespace, scorer: Any | None = None) -> di
                     score,
                     requested_model=args.model,
                     reasoning_effort=args.reasoning_effort,
+                    token_cost_calibration=token_cost_calibration,
                 )
                 async with lock:
                     _append_jsonl(scores_path, row)
@@ -596,6 +674,8 @@ async def run_scoring(args: argparse.Namespace, scorer: Any | None = None) -> di
             completed_rows=existing,
             new_rows=new_rows,
             errors=errors,
+            token_cost_calibration=token_cost_calibration,
+            token_cost_rows_updated=token_cost_rows_updated,
         )
         _write_json(summary_path, summary)
         if owns_scorer:
