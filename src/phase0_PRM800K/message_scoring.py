@@ -7,9 +7,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
+import multiprocessing
 import os
 from pathlib import Path
+from queue import Empty
 import sys
+import traceback
 from typing import Any, Literal
 
 from dotenv import load_dotenv
@@ -352,6 +355,27 @@ def _should_retry(exc: Exception) -> bool:
     return isinstance(exc, APIStatusError) and exc.status_code in {408, 409, 429, 500, 502, 503, 504}
 
 
+def _no_parsed_score_message(response: Any, raw_output: str) -> str:
+    output_items = getattr(response, "output", None) or []
+    output_types = [
+        getattr(item, "type", type(item).__name__)
+        for item in output_items
+    ]
+    content_types = [
+        getattr(content, "type", type(content).__name__)
+        for item in output_items
+        for content in (getattr(item, "content", None) or [])
+    ]
+    return (
+        "OpenAI response contained no parsed score; "
+        f"status={getattr(response, 'status', None)!r}; "
+        f"incomplete_details={getattr(response, 'incomplete_details', None)!r}; "
+        f"output_types={output_types!r}; "
+        f"content_types={content_types!r}; "
+        f"output_text={raw_output[:1000]!r}"
+    )
+
+
 class OpenAIMessageScorer:
     def __init__(
         self,
@@ -388,7 +412,17 @@ class OpenAIMessageScorer:
                     model=self.model,
                     reasoning={"effort": self.reasoning_effort},
                     instructions=RUBRIC_PROMPT,
-                    input=prepared.user_prompt,
+                    input=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "input_text",
+                                        "text": prepared.user_prompt,
+                                    }
+                                ],
+                            }
+                        ],
                     text_format=ScoreAssessment,
                     max_output_tokens=4096,
                     store=False,
@@ -474,6 +508,33 @@ def _result_row(
     }
 
 
+def _error_row(
+    prepared: PreparedMessage,
+    *,
+    model: str,
+    exc: Exception,
+) -> dict[str, Any]:
+    row = prepared.row
+    return {
+        "message_id": row.get("message_id"),
+        "original_message_id": row.get("original_message_id", row.get("message_id")),
+        "source_message_id": row.get("source_message_id"),
+        "source_run_key": row.get("source_run_key"),
+        "source_message_file": row.get("source_message_file"),
+        "split": row.get("split"),
+        "question_id": row.get("question_id"),
+        "source_index": row.get("source_index"),
+        "sender": row.get("sender"),
+        "recipient": row.get("recipient"),
+        "kind": row.get("kind"),
+        "model": model,
+        "rubric_version": RUBRIC_VERSION,
+        "prompt_hash": prepared.prompt_hash,
+        "error": repr(exc),
+        "failed_at": _utc_now(),
+    }
+
+
 def _matching_completed(
     rows: list[dict[str, Any]],
     *,
@@ -493,6 +554,115 @@ def _matching_completed(
         if key[1] == RUBRIC_VERSION and key[2] == model:
             matching[key] = row
     return matching
+
+
+def _partition_messages(
+    pending: list[PreparedMessage],
+    process_count: int,
+) -> list[list[PreparedMessage]]:
+    worker_count = min(process_count, len(pending))
+    if worker_count == 0:
+        return []
+    return [pending[index::worker_count] for index in range(worker_count)]
+
+
+async def _score_items_to_queue(
+    *,
+    items: list[PreparedMessage],
+    scorer: Any,
+    config: dict[str, Any],
+    token_cost_calibration: TokenCostCalibration,
+    result_queue: Any,
+) -> None:
+    semaphore = asyncio.Semaphore(int(config["concurrency"]))
+
+    async def process(item: PreparedMessage) -> None:
+        async with semaphore:
+            try:
+                score = await scorer.score(item)
+                result_queue.put(
+                    (
+                        "score",
+                        _result_row(
+                            item,
+                            score,
+                            requested_model=str(config["model"]),
+                            reasoning_effort=str(config["reasoning_effort"]),
+                            token_cost_calibration=token_cost_calibration,
+                        ),
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001 - report individual failures to parent.
+                result_queue.put(
+                    (
+                        "error",
+                        _error_row(item, model=str(config["model"]), exc=exc),
+                    )
+                )
+
+    await asyncio.gather(*(process(item) for item in items))
+
+
+async def _score_worker_batch(
+    *,
+    items: list[PreparedMessage],
+    worker_id: int,
+    config: dict[str, Any],
+    token_cost_calibration: TokenCostCalibration,
+    result_queue: Any,
+) -> None:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is required unless --dry-run is used")
+    scorer = OpenAIMessageScorer(
+        model=str(config["model"]),
+        reasoning_effort=str(config["reasoning_effort"]),
+        api_key=api_key,
+        request_retries=int(config["request_retries"]),
+        retry_backoff_seconds=float(config["retry_backoff_seconds"]),
+    )
+    try:
+        await _score_items_to_queue(
+            items=items,
+            scorer=scorer,
+            config=config,
+            token_cost_calibration=token_cost_calibration,
+            result_queue=result_queue,
+        )
+    finally:
+        await scorer.close()
+        result_queue.put(("worker_done", worker_id))
+
+
+def _multiprocess_worker_entry(
+    items: list[PreparedMessage],
+    worker_id: int,
+    config: dict[str, Any],
+    token_cost_calibration: TokenCostCalibration,
+    result_queue: Any,
+) -> None:
+    try:
+        asyncio.run(
+            _score_worker_batch(
+                items=items,
+                worker_id=worker_id,
+                config=config,
+                token_cost_calibration=token_cost_calibration,
+                result_queue=result_queue,
+            )
+        )
+    except BaseException as exc:  # noqa: BLE001 - surface process-level failures to parent.
+        result_queue.put(
+            (
+                "worker_failure",
+                {
+                    "worker_id": worker_id,
+                    "error": repr(exc),
+                    "traceback": traceback.format_exc(),
+                },
+            )
+        )
+        result_queue.put(("worker_done", worker_id))
 
 
 def _build_summary(
@@ -516,7 +686,9 @@ def _build_summary(
         "rubric_version": RUBRIC_VERSION,
         "model": args.model,
         "reasoning_effort": args.reasoning_effort,
+        "processes": int(getattr(args, "processes", 1)),
         "concurrency": args.concurrency,
+        "max_concurrent_requests": int(getattr(args, "processes", 1)) * args.concurrency,
         "request_retries": args.request_retries,
         "retry_backoff_seconds": args.retry_backoff_seconds,
         "limit": args.limit,
@@ -549,6 +721,148 @@ def _build_summary(
     }
 
 
+def _run_scoring_multiprocess(
+    args: argparse.Namespace,
+    *,
+    message_rows: list[dict[str, Any]],
+    prepared: list[PreparedMessage],
+    token_cost_calibration: TokenCostCalibration,
+) -> dict[str, Any]:
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    scores_path = output_dir / "message_scores.jsonl"
+    errors_path = output_dir / "errors.jsonl"
+    summary_path = output_dir / "summary.json"
+    completed_lookup = _matching_completed(_read_completed_rows(scores_path), model=args.model)
+    existing: list[dict[str, Any]] = []
+    pending: list[PreparedMessage] = []
+    token_cost_rows_updated = 0
+    for item in prepared:
+        row = completed_lookup.get(
+            _resume_key(str(item.row["message_id"]), args.model, item.prompt_hash)
+        )
+        if row is None:
+            pending.append(item)
+        else:
+            updated_row = {**row, **_token_cost_fields(item, token_cost_calibration)}
+            if updated_row != row:
+                _append_jsonl(scores_path, updated_row)
+                token_cost_rows_updated += 1
+            existing.append(updated_row)
+
+    if pending and not os.getenv("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY is required unless --dry-run is used")
+
+    started_at = _utc_now()
+    new_rows: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    worker_failures: list[dict[str, Any]] = []
+    batches = _partition_messages(pending, int(args.processes))
+    worker_count = len(batches)
+    context = multiprocessing.get_context("spawn")
+    result_queue = context.Queue()
+    config = {
+        "model": args.model,
+        "reasoning_effort": args.reasoning_effort,
+        "concurrency": args.concurrency,
+        "request_retries": args.request_retries,
+        "retry_backoff_seconds": args.retry_backoff_seconds,
+    }
+    workers: list[multiprocessing.Process] = []
+    progress = tqdm(total=len(pending), desc="Scoring messages", unit="message")
+
+    try:
+        for worker_id, batch in enumerate(batches):
+            worker = context.Process(
+                target=_multiprocess_worker_entry,
+                args=(
+                    batch,
+                    worker_id,
+                    config,
+                    token_cost_calibration,
+                    result_queue,
+                ),
+                name=f"message-scorer-{worker_id}",
+            )
+            worker.start()
+            workers.append(worker)
+
+        completed_workers: set[int] = set()
+        while len(completed_workers) < worker_count:
+            try:
+                event, payload = result_queue.get(timeout=0.5)
+            except Empty:
+                for worker_id, worker in enumerate(workers):
+                    if (
+                        worker_id not in completed_workers
+                        and worker.exitcode not in (None, 0)
+                    ):
+                        worker_failures.append(
+                            {
+                                "worker_id": worker_id,
+                                "error": f"worker exited with code {worker.exitcode}",
+                            }
+                        )
+                        completed_workers.add(worker_id)
+                continue
+
+            if event == "score":
+                _append_jsonl(scores_path, payload)
+                new_rows.append(payload)
+                progress.update(1)
+            elif event == "error":
+                _append_jsonl(errors_path, payload)
+                errors.append(payload)
+                progress.update(1)
+            elif event == "worker_failure":
+                worker_failures.append(payload)
+            elif event == "worker_done":
+                completed_workers.add(int(payload))
+            else:
+                worker_failures.append(
+                    {
+                        "worker_id": None,
+                        "error": f"unknown worker event: {event!r}",
+                    }
+                )
+    except BaseException:
+        for worker in workers:
+            if worker.is_alive():
+                worker.terminate()
+        raise
+    finally:
+        for worker in workers:
+            worker.join()
+        progress.close()
+        result_queue.close()
+        result_queue.join_thread()
+
+    summary = _build_summary(
+        args=args,
+        started_at=started_at,
+        total_input_messages=len(message_rows),
+        prepared=prepared,
+        completed_rows=existing,
+        new_rows=new_rows,
+        errors=errors,
+        token_cost_calibration=token_cost_calibration,
+        token_cost_rows_updated=token_cost_rows_updated,
+    )
+    summary["worker_processes_used"] = worker_count
+    summary["worker_failures"] = worker_failures
+    _write_json(summary_path, summary)
+
+    if worker_failures:
+        raise RuntimeError(
+            f"{len(worker_failures)} scoring worker process(es) failed; see summary.json"
+        )
+    if errors and not args.continue_on_error:
+        raise RuntimeError(
+            f"{len(errors)} message(s) failed; rerun with --continue-on-error to keep exit status zero"
+        )
+    return summary
+
+
 async def run_scoring(args: argparse.Namespace, scorer: Any | None = None) -> dict[str, Any]:
     message_rows = _read_jsonl(Path(args.messages))
     prepared = prepare_messages(message_rows, load_examples(args.splits_dir), limit=args.limit)
@@ -560,6 +874,11 @@ async def run_scoring(args: argparse.Namespace, scorer: Any | None = None) -> di
             "total_input_messages": len(message_rows),
             "eligible_messages": len(prepared),
             "eligible_by_kind": dict(Counter(str(item.row.get("kind")) for item in prepared)),
+            "processes": int(getattr(args, "processes", 1)),
+            "concurrency": args.concurrency,
+            "max_concurrent_requests": (
+                int(getattr(args, "processes", 1)) * args.concurrency
+            ),
             "token_cost_version": TOKEN_COST_VERSION,
             "token_cost_reference_longest_tokens": (
                 token_cost_calibration.longest_message_tokens
@@ -570,6 +889,16 @@ async def run_scoring(args: argparse.Namespace, scorer: Any | None = None) -> di
         }
         print(json.dumps(summary, ensure_ascii=False, indent=2))
         return summary
+
+    if int(getattr(args, "processes", 1)) > 1:
+        if scorer is not None:
+            raise ValueError("A custom scorer cannot be used with multi-process scoring")
+        return _run_scoring_multiprocess(
+            args,
+            message_rows=message_rows,
+            prepared=prepared,
+            token_cost_calibration=token_cost_calibration,
+        )
 
     owns_scorer = scorer is None
     if scorer is None:
@@ -626,26 +955,7 @@ async def run_scoring(args: argparse.Namespace, scorer: Any | None = None) -> di
                     _append_jsonl(scores_path, row)
                     new_rows.append(row)
             except Exception as exc:  # noqa: BLE001 - preserve failures for resumption.
-                error = {
-                    "message_id": item.row.get("message_id"),
-                    "original_message_id": item.row.get(
-                        "original_message_id", item.row.get("message_id")
-                    ),
-                    "source_message_id": item.row.get("source_message_id"),
-                    "source_run_key": item.row.get("source_run_key"),
-                    "source_message_file": item.row.get("source_message_file"),
-                    "split": item.row.get("split"),
-                    "question_id": item.row.get("question_id"),
-                    "source_index": item.row.get("source_index"),
-                    "sender": item.row.get("sender"),
-                    "recipient": item.row.get("recipient"),
-                    "kind": item.row.get("kind"),
-                    "model": args.model,
-                    "rubric_version": RUBRIC_VERSION,
-                    "prompt_hash": item.prompt_hash,
-                    "error": repr(exc),
-                    "failed_at": _utc_now(),
-                }
+                error = _error_row(item, model=args.model, exc=exc)
                 async with lock:
                     _append_jsonl(errors_path, error)
                     errors.append(error)
@@ -711,7 +1021,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--splits-dir", help="Optional override for the splits directory")
     parser.add_argument("--model", default="gpt-5.6-sol")
     parser.add_argument("--reasoning-effort", choices=REASONING_EFFORTS, default="high")
-    parser.add_argument("--concurrency", type=_positive_int, default=8)
+    parser.add_argument(
+        "--processes",
+        type=_positive_int,
+        default=1,
+        help="Number of scoring worker processes. Use 1 for the original single-process mode.",
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=_positive_int,
+        default=8,
+        help="Maximum concurrent API requests per process.",
+    )
     parser.add_argument("--request-retries", type=_non_negative_int, default=3)
     parser.add_argument("--retry-backoff-seconds", type=float, default=2.0)
     parser.add_argument("--output-dir")
@@ -722,6 +1043,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    multiprocessing.freeze_support()
     load_dotenv()
     parser = build_parser()
     args = parser.parse_args()

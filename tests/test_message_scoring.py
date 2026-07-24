@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import multiprocessing
 from pathlib import Path
+from queue import Empty
 import sys
 from types import SimpleNamespace
 
@@ -20,7 +22,12 @@ from phase0_PRM800K.message_scoring import (
     ModelScore,
     OpenAIMessageScorer,
     ScoreAssessment,
+    _build_token_cost_calibration,
+    _multiprocess_worker_entry,
+    _partition_messages,
+    _score_items_to_queue,
     _token_cost_score,
+    build_parser,
     load_examples,
     prepare_messages,
     run_scoring,
@@ -81,6 +88,7 @@ def _args(messages: Path, splits_dir: Path, output_dir: Path, *, dry_run: bool =
         splits_dir=str(splits_dir),
         model="gpt-5.6-sol",
         reasoning_effort="high",
+        processes=1,
         concurrency=2,
         request_retries=2,
         retry_backoff_seconds=0.0,
@@ -113,11 +121,33 @@ class FakeScorer:
         )
 
 
+class FakeQueue:
+    def __init__(self) -> None:
+        self.events: list[tuple[str, object]] = []
+
+    def put(self, event: tuple[str, object]) -> None:
+        self.events.append(event)
+
+
+class FakeResponseStreamManager:
+    def __init__(self, response: SimpleNamespace) -> None:
+        self.response = response
+
+    async def __aenter__(self) -> "FakeResponseStreamManager":
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        return None
+
+    async def get_final_response(self) -> SimpleNamespace:
+        return self.response
+
+
 class FakeResponses:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
 
-    async def parse(self, **kwargs: object) -> SimpleNamespace:
+    def stream(self, **kwargs: object) -> FakeResponseStreamManager:
         self.calls.append(kwargs)
         if len(self.calls) == 1:
             parsed: object = {
@@ -136,17 +166,33 @@ class FakeResponses:
                 critical_error=None,
             )
         usage = SimpleNamespace(input_tokens=7, output_tokens=4, total_tokens=11)
-        return SimpleNamespace(
-            output_parsed=parsed,
-            usage=usage,
-            id="resp_test",
-            model="gpt-5.6-sol-2026-07-01",
+        return FakeResponseStreamManager(
+            SimpleNamespace(
+                output_parsed=parsed,
+                output_text="",
+                output=[],
+                status="completed",
+                incomplete_details=None,
+                usage=usage,
+                id="resp_test",
+                model="gpt-5.6-sol-2026-07-01",
+            )
         )
 
 
+class StaticFakeResponses:
+    def __init__(self, response: SimpleNamespace) -> None:
+        self.response = response
+        self.calls: list[dict[str, object]] = []
+
+    def stream(self, **kwargs: object) -> FakeResponseStreamManager:
+        self.calls.append(kwargs)
+        return FakeResponseStreamManager(self.response)
+
+
 class FakeClient:
-    def __init__(self) -> None:
-        self.responses = FakeResponses()
+    def __init__(self, responses: object | None = None) -> None:
+        self.responses = responses or FakeResponses()
         self.closed = False
 
     async def close(self) -> None:
@@ -175,6 +221,120 @@ def test_token_cost_score_is_continuous_and_clipped_at_cutoff() -> None:
 
     with pytest.raises(ValueError, match="non-negative"):
         _token_cost_score(-1, 30.0)
+
+
+def test_processes_and_per_process_concurrency_are_configurable() -> None:
+    args = build_parser().parse_args(["--processes", "3", "--concurrency", "4"])
+
+    assert args.processes == 3
+    assert args.concurrency == 4
+
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["--processes", "0"])
+
+
+def test_partition_messages_uses_requested_process_count_without_duplication() -> None:
+    rows = [
+        _message(
+            f"m{index}",
+            sender="Planner",
+            recipient="SolverA",
+            kind="plan",
+            content=f"Plan {index}.",
+        )
+        for index in range(5)
+    ]
+    prepared = prepare_messages(rows, {("train", 0, 10): _example()})
+
+    batches = _partition_messages(prepared, process_count=3)
+
+    assert [len(batch) for batch in batches] == [2, 2, 1]
+    assert sorted(item.row["message_id"] for batch in batches for item in batch) == [
+        "m0",
+        "m1",
+        "m2",
+        "m3",
+        "m4",
+    ]
+
+
+def test_worker_emits_each_completed_score_to_parent_queue() -> None:
+    rows = [
+        _message(
+            f"m{index}",
+            sender="Planner",
+            recipient="SolverA",
+            kind="plan",
+            content=f"Plan {index}.",
+        )
+        for index in range(3)
+    ]
+    prepared = prepare_messages(rows, {("train", 0, 10): _example()})
+    queue = FakeQueue()
+    scorer = FakeScorer()
+
+    asyncio.run(
+        _score_items_to_queue(
+            items=prepared,
+            scorer=scorer,
+            config={
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "high",
+                "concurrency": 2,
+            },
+            token_cost_calibration=_build_token_cost_calibration(prepared),
+            result_queue=queue,
+        )
+    )
+
+    assert scorer.calls == 3
+    assert [event for event, _payload in queue.events] == ["score", "score", "score"]
+    assert {
+        payload["message_id"]
+        for event, payload in queue.events
+        if event == "score"
+    } == {"m0", "m1", "m2"}
+
+
+def test_multiprocess_worker_entry_is_spawn_safe_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    context = multiprocessing.get_context("spawn")
+    queue = context.Queue()
+    worker = context.Process(
+        target=_multiprocess_worker_entry,
+        args=(
+            [],
+            0,
+            {
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "high",
+                "concurrency": 1,
+                "request_retries": 0,
+                "retry_backoff_seconds": 0.0,
+            },
+            _build_token_cost_calibration([]),
+            queue,
+        ),
+    )
+    worker.start()
+    worker.join(timeout=15)
+    if worker.is_alive():
+        worker.terminate()
+        worker.join()
+        pytest.fail("spawned scoring worker did not exit")
+
+    events: list[str] = []
+    while True:
+        try:
+            event, _payload = queue.get_nowait()
+        except Empty:
+            break
+        events.append(event)
+    queue.close()
+    queue.join_thread()
+
+    assert worker.exitcode == 0
+    assert events == ["worker_failure", "worker_done"]
 
 
 def test_prepare_messages_uses_only_prior_non_control_recipient_history() -> None:
@@ -267,8 +427,87 @@ def test_openai_scorer_retries_schema_inconsistency_and_uses_responses_api() -> 
     assert request["reasoning"] == {"effort": "high"}
     assert request["text_format"] is ScoreAssessment
     assert request["store"] is False
+    assert request["input"] == [
+        {
+            "role": "user",
+            "content": [{"type": "input_text", "text": prepared.user_prompt}],
+        }
+    ]
     assert result.assessment.downstream_value_level == 2
     assert result.total_tokens == 11
+
+
+def test_openai_scorer_parses_raw_json_when_proxy_omits_output_parsed() -> None:
+    raw_assessment = ScoreAssessment(
+        correctness_level=4,
+        correctness_rationale="Correct.",
+        downstream_value_level=3,
+        downstream_value_rationale="Useful.",
+        critical_error=None,
+    )
+    usage = SimpleNamespace(input_tokens=7, output_tokens=4, total_tokens=11)
+    responses = StaticFakeResponses(
+        SimpleNamespace(
+            output_parsed=None,
+            output_text=raw_assessment.model_dump_json(),
+            output=[],
+            status="completed",
+            incomplete_details=None,
+            usage=usage,
+            id="resp_json",
+            model="gpt-5.6-sol",
+        )
+    )
+    scorer = OpenAIMessageScorer(
+        model="gpt-5.6-sol",
+        reasoning_effort="high",
+        api_key="test",
+        request_retries=0,
+        retry_backoff_seconds=0,
+        client=FakeClient(responses),
+    )
+    row = _message("m1", sender="Planner", recipient="SolverA", kind="plan", content="Add.")
+    prepared = prepare_messages([row], {("train", 0, 10): _example()})[0]
+
+    result = asyncio.run(scorer.score(prepared))
+
+    assert result.assessment == raw_assessment
+    assert len(responses.calls) == 1
+
+
+def test_openai_scorer_reports_incomplete_response_details() -> None:
+    responses = StaticFakeResponses(
+        SimpleNamespace(
+            output_parsed=None,
+            output_text="",
+            output=[
+                SimpleNamespace(
+                    type="message",
+                    content=[SimpleNamespace(type="refusal")],
+                )
+            ],
+            status="incomplete",
+            incomplete_details=SimpleNamespace(reason="max_output_tokens"),
+        )
+    )
+    scorer = OpenAIMessageScorer(
+        model="gpt-5.6-sol",
+        reasoning_effort="high",
+        api_key="test",
+        request_retries=0,
+        retry_backoff_seconds=0,
+        client=FakeClient(responses),
+    )
+    row = _message("m1", sender="Planner", recipient="SolverA", kind="plan", content="Add.")
+    prepared = prepare_messages([row], {("train", 0, 10): _example()})[0]
+
+    with pytest.raises(ValueError) as exc_info:
+        asyncio.run(scorer.score(prepared))
+
+    message = str(exc_info.value)
+    assert "status='incomplete'" in message
+    assert "max_output_tokens" in message
+    assert "content_types=['refusal']" in message
 
 
 def test_run_scoring_writes_scores_and_resumes_exact_key(tmp_path: Path) -> None:
@@ -353,6 +592,37 @@ def test_resume_recalibrates_token_cost_without_rescoring_existing_rows(tmp_path
     assert latest_short["token_cost_score"] == pytest.approx(2 / 3)
 
 
+def test_multiprocess_mode_resumes_without_starting_workers_when_nothing_is_pending(
+    tmp_path: Path,
+) -> None:
+    messages = tmp_path / "messages.jsonl"
+    splits = tmp_path / "splits"
+    output = tmp_path / "scores"
+    _write_jsonl(splits / "train.jsonl", [_example()])
+    _write_jsonl(
+        messages,
+        [
+            _message(
+                "m1",
+                sender="Planner",
+                recipient="SolverA",
+                kind="plan",
+                content="Add directly.",
+            )
+        ],
+    )
+    args = _args(messages, splits, output)
+    asyncio.run(run_scoring(args, scorer=FakeScorer()))
+    args.processes = 3
+
+    summary = asyncio.run(run_scoring(args))
+
+    assert summary["completed_existing"] == 1
+    assert summary["completed_new"] == 0
+    assert summary["processes"] == 3
+    assert summary["worker_processes_used"] == 0
+
+
 def test_dry_run_needs_no_api_key_and_reports_dynamic_scope(tmp_path: Path) -> None:
     messages = tmp_path / "messages.jsonl"
     splits = tmp_path / "splits"
@@ -371,6 +641,9 @@ def test_dry_run_needs_no_api_key_and_reports_dynamic_scope(tmp_path: Path) -> N
     assert summary["total_input_messages"] == 3
     assert summary["eligible_messages"] == 2
     assert summary["eligible_by_kind"] == {"plan": 1, "solver_step": 1}
+    assert summary["processes"] == 1
+    assert summary["concurrency"] == 2
+    assert summary["max_concurrent_requests"] == 2
     assert summary["token_cost_reference_longest_tokens"] == 1
     assert summary["token_cost_cutoff_tokens"] == 1.5
     assert not (tmp_path / "unused").exists()
