@@ -408,31 +408,56 @@ class OpenAIMessageScorer:
     async def score(self, prepared: PreparedMessage) -> ModelScore:
         for attempt in range(self.request_retries + 1):
             try:
-                response = await self.client.responses.parse(
+                raw_parts: list[str] = []
+                stream_assessment: ScoreAssessment | None = None
+
+                async with self.client.responses.stream(
                     model=self.model,
                     reasoning={"effort": self.reasoning_effort},
                     instructions=RUBRIC_PROMPT,
                     input=[
-                            {
-                                "role": "user",
-                                "content": [
-                                    {
-                                        "type": "input_text",
-                                        "text": prepared.user_prompt,
-                                    }
-                                ],
-                            }
-                        ],
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "input_text",
+                                    "text": prepared.user_prompt,
+                                }
+                            ],
+                        }
+                    ],
                     text_format=ScoreAssessment,
                     max_output_tokens=4096,
                     store=False,
-                    prompt_cache_key=self.build_prompt_cache_key(prepared)
-                )
-                assessment = response.output_parsed
+                    prompt_cache_key=self.build_prompt_cache_key(prepared),
+                ) as stream:
+                    async for event in stream:
+                        if event.type == "response.output_text.delta":
+                            raw_parts.append(event.delta)
+                        elif event.type == "response.output_text.done":
+                            raw_parts = [event.text]
+                            parsed = getattr(event, "parsed", None)
+                            if parsed is not None:
+                                stream_assessment = parsed
+
+                    response = await stream.get_final_response()
+
+                assessment = stream_assessment
                 if assessment is None:
-                    raise ValueError("OpenAI response contained no parsed score (possible refusal or truncation)")
-                if not isinstance(assessment, ScoreAssessment):
-                    assessment = ScoreAssessment.model_validate(assessment)
+                    assessment = response.output_parsed
+
+                if assessment is None:
+                    raw_output = "".join(raw_parts)
+                    if not raw_output:
+                        raw_output = str(getattr(response, "output_text", "") or "")
+
+                    if raw_output:
+                        assessment = ScoreAssessment.model_validate_json(raw_output)
+                    else:
+                        raise ValueError(
+                            "Streaming response contained no score text; "
+                            f"status={getattr(response, 'status', None)!r}"
+                        )
                 usage = getattr(response, "usage", None)
                 input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
                 output_tokens = int(getattr(usage, "output_tokens", 0) or 0)
