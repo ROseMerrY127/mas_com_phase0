@@ -1,0 +1,38 @@
+{
+  "master_dir": "通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z",
+  "seed": 0,
+  "available_prunable_candidates": 4346,
+  "successful_baseline_examples": 398,
+  "lomo_sample_size": 1000,
+  "lomo_round_quotas": {
+    "1": 586,
+    "2": 300,
+    "3": 100,
+    "4": 14
+  },
+  "lomo_kind_distribution": {
+    "judge_feedback": 243,
+    "plan": 329,
+    "solver_step": 428
+  },
+  "lomo_round_distribution": {
+    "1": 586,
+    "2": 300,
+    "3": 100,
+    "4": 14
+  },
+  "lomo_sender_distribution": {
+    "Judger": 243,
+    "Planner": 329,
+    "SolverA": 214,
+    "SolverB": 214
+  },
+  "lomo_recipient_distribution": {
+    "Judger": 324,
+    "Planner": 295,
+    "SolverA": 191,
+    "SolverB": 190
+  },
+  "total_planned_counterfactual_trajectories": 1000,
+  "created_at": "2026-07-24T09:04:01.355099+00:00"
+}
