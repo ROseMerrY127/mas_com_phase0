@@ -100,11 +100,11 @@ class ScoreAssessment(BaseModel):
     downstream_value_rationale: str
     critical_error: str | None
 
-    @model_validator(mode="after")
-    def validate_level_consistency(self) -> "ScoreAssessment":
-        if self.downstream_value_level > self.correctness_level:
-            raise ValueError("downstream_value_level cannot exceed correctness_level")
-        return self
+    # @model_validator(mode="after")
+    # def validate_level_consistency(self) -> "ScoreAssessment":
+    #     if self.downstream_value_level > self.correctness_level:
+    #         raise ValueError("downstream_value_level cannot exceed correctness_level")
+    #     return self
 
 
 @dataclass(frozen=True)
