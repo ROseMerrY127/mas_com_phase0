@@ -1,0 +1,21 @@
+{
+  "plan_version": "random_stage_replay_v1",
+  "master_dir": "runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z",
+  "plan_path": "experiment_plans/math500_random_stage400_seed0/random_stage_plan.jsonl",
+  "num_examples": 400,
+  "seed": 0,
+  "min_dropped_edges": 2,
+  "stage_counts": {
+    "judger": 24,
+    "planner": 191,
+    "solver": 185
+  },
+  "round_counts": {
+    "1": 331,
+    "2": 62,
+    "3": 6,
+    "4": 1
+  },
+  "created_at": "2026-08-09T07:44:49.678512+00:00",
+  "temperature": 0.0
+}

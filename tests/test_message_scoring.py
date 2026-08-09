@@ -17,7 +17,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from phase0_PRM800K.message_scoring import (
+from phase0_MATH500.message_scoring import (
     RUBRIC_PROMPT,
     ModelScore,
     OpenAIMessageScorer,

@@ -10,10 +10,11 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from phase0_PRM800K.agents import LLMResponse, run_mas_full_path
-from phase0_PRM800K.edge_pruning import DropCandidateOncePolicy
-from phase0_PRM800K.router import FullForwardRouter, ReplayController
-from phase0_PRM800K.scoped_replay import build_scoped_parent
+from phase0_MATH500.agents import LLMResponse, run_mas_full_path
+from phase0_MATH500.edge_pruning import DropCandidateOncePolicy, StableRandomDropPolicy
+from phase0_MATH500.router import FullForwardRouter, ReplayController
+from phase0_MATH500.run_pruning import _resolve_random_drop_stage
+from phase0_MATH500.scoped_replay import build_scoped_parent
 
 
 class FinalMockModel:
@@ -68,9 +69,13 @@ async def _build_two_question_parent(parent: Path) -> tuple[FullForwardRouter, s
     _write_jsonl(parent / "activations.jsonl", router.activations_as_dicts())
     _write_jsonl(parent / "edge_candidates.jsonl", router.edge_candidates_as_dicts())
     _write_jsonl(parent / "edge_decisions.jsonl", router.edge_decisions_as_dicts())
+    _write_jsonl(parent / "stage_actions.jsonl", router.stage_actions_as_dicts())
     _write_jsonl(parent / "rl_edge_samples.jsonl", router.rl_edge_samples_as_dicts())
     _write_jsonl(parent / "traces.jsonl", router.as_dicts())
-    (parent / "summary.json").write_text(json.dumps({"split": "train", "num_examples": 2}), encoding="utf-8")
+    (parent / "summary.json").write_text(
+        json.dumps({"split": "train", "num_examples": 2, "edge_policy": "identity"}),
+        encoding="utf-8",
+    )
     target = next(
         row.candidate_id
         for row in router.edge_candidates
@@ -81,7 +86,14 @@ async def _build_two_question_parent(parent: Path) -> tuple[FullForwardRouter, s
 
 def test_scoped_replay_only_contains_and_reexecutes_target_question(tmp_path: Path) -> None:
     parent = tmp_path / "parent"
-    _router, target = asyncio.run(_build_two_question_parent(parent))
+    parent_router, target = asyncio.run(_build_two_question_parent(parent))
+    resolved_stage, resolved_candidate = _resolve_random_drop_stage(
+        replay_from_run=parent,
+        checkpoint_candidate_id=target,
+        include_self_edges=False,
+        min_dropped_edges=2,
+    )
+    assert resolved_candidate["candidate_id"] == target
     scoped = tmp_path / "scoped"
     metadata = build_scoped_parent(parent, scoped, split="train", question_id=1, source_index=101)
 
@@ -115,6 +127,44 @@ def test_scoped_replay_only_contains_and_reexecutes_target_question(tmp_path: Pa
     assert {row.question_id for row in child.edge_candidates} == {1}
     dropped = [row for row in child.edge_decisions if row.dropped]
     assert [row.candidate_id for row in dropped] == [target]
+    lomo_action = next(row for row in child.stage_actions if target in row.candidate_ids)
+    assert lomo_action.action_mask.count("1") == 1
+    assert lomo_action.dropped_candidate_ids == [target]
+
+    target_stage_action_id = next(
+        row.stage_action_id for row in parent_router.edge_candidates if row.candidate_id == target
+    )
+    assert target_stage_action_id is not None
+    assert resolved_stage == target_stage_action_id
+    random_replay = ReplayController(scoped, target)
+    random_child = FullForwardRouter(
+        run_id="random-child",
+        edge_policy=StableRandomDropPolicy(
+            seed=7,
+            target_stage_action_id=target_stage_action_id,
+        ),
+        replay_controller=random_replay,
+    )
+    random_child._counters.update(metadata["counter_offsets"])
+    asyncio.run(
+        run_mas_full_path(
+            split="train",
+            question_id=1,
+            source_index=101,
+            problem="What is 40 + 2?",
+            model=FinalMockModel(),
+            router=random_child,
+            max_rounds=1,
+        )
+    )
+
+    random_actions = [row for row in random_child.stage_actions if "1" in row.action_mask]
+    assert [row.stage_action_id for row in random_actions] == [target_stage_action_id]
+    assert random_actions[0].action_mask.count("1") >= 2
+    assert all(
+        not decision.dropped or decision.stage_action_id == target_stage_action_id
+        for decision in random_child.edge_decisions
+    )
 
 
 if __name__ == "__main__":

@@ -1,0 +1,29 @@
+data_path: MATH500/test.jsonl
+train_size: 400
+test_size: 100
+seed: 0
+split: train
+sample_size: null
+start_index: 0
+model: gpt-5.4
+temperature: 0.0
+max_tokens: 1024
+request_retries: 3
+retry_backoff_seconds: 2.0
+max_rounds: 4
+stall_rounds: 2
+force_final_on_stop: true
+
+# Keep standalone generation on identity. random_drop is replay-only and is selected with
+# --replay-policy-name random_drop plus an identity parent/checkpoint.
+edge_policy: identity
+lomo_candidate_id: null
+random_policy_seed: 0
+random_drop_min_edges: 2
+pruning_include_self_edges: false
+
+replay_from_run: null
+checkpoint_candidate_id: null
+replay_policy_name: identity
+output_dir: runs
+continue_on_error: false

@@ -11,8 +11,8 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from phase0_PRM800K.merge_messages import discover_message_files, merge_dataset
-from phase0_PRM800K.message_scoring import load_examples, prepare_messages
+from phase0_MATH500.merge_messages import discover_message_files, merge_dataset
+from phase0_MATH500.message_scoring import load_examples, prepare_messages
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:

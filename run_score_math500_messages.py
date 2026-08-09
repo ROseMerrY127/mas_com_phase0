@@ -8,7 +8,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from phase0_MATH500.lomo_batch import main
+from phase0_MATH500.message_scoring import main
 
 
 if __name__ == "__main__":
