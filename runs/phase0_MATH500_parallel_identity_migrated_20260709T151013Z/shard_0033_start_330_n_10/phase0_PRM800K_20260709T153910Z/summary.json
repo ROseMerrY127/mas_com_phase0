@@ -1,0 +1,53 @@
+{
+  "split": "train",
+  "requested_sample_size": 10,
+  "start_index": 330,
+  "scanned_records": 500,
+  "valid_records": 500,
+  "train_size": 400,
+  "test_size": 100,
+  "seed": 0,
+  "model": "gpt-5.4",
+  "data_path": "MATH500/test.jsonl",
+  "train_split_path": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0033_start_330_n_10/phase0_PRM800K_20260709T153910Z/splits/train.jsonl",
+  "test_split_path": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0033_start_330_n_10/phase0_PRM800K_20260709T153910Z/splits/test.jsonl",
+  "max_rounds": 4,
+  "stall_rounds": 2,
+  "force_final_on_stop": true,
+  "edge_policy": "identity",
+  "replay_from_run": null,
+  "parent_run_id": null,
+  "checkpoint_candidate_id": null,
+  "replay_policy_name": null,
+  "created_at": "2026-07-09T15:39:11.063008+00:00",
+  "prepare_only": false,
+  "num_examples": 9,
+  "planned_examples": 10,
+  "single_agent_approx_input_tokens": 2789,
+  "single_agent_approx_output_tokens": 285,
+  "single_agent_approx_total_tokens": 3074,
+  "mas_approx_input_tokens": 47219,
+  "mas_approx_output_tokens": 8278,
+  "mas_approx_total_tokens": 55497,
+  "approx_tokens": 58571,
+  "latency_ms": 1348253,
+  "num_messages": 227,
+  "num_activations": 58,
+  "num_edge_candidates": 168,
+  "num_edge_decisions": 168,
+  "errors": [
+    {
+      "split": "train",
+      "question_id": 330,
+      "source_index": 25,
+      "error": "RemoteProtocolError('peer closed connection without sending complete message body (incomplete chunked read)')"
+    }
+  ],
+  "num_stage_actions": 53,
+  "migration": {
+    "version": "legacy_identity_stage_v1",
+    "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0033_start_330_n_10/phase0_PRM800K_20260709T153910Z",
+    "migrated_at": "2026-08-09T07:15:03.637969+00:00",
+    "identity_action": "all_zero_stage_mask"
+  }
+}

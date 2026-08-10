@@ -1,0 +1,614 @@
+{
+  "migration_version": "legacy_identity_stage_v1",
+  "source_root": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z",
+  "output_root": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z",
+  "migrated_at": "2026-08-09T07:15:03.775583+00:00",
+  "num_runs": 40,
+  "num_candidates": 6427,
+  "num_decisions": 6427,
+  "num_stage_actions": 2067,
+  "num_predictions": 398,
+  "num_errors": 2,
+  "runs": [
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0000_start_0_n_10/phase0_PRM800K_20260709T151016Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0000_start_0_n_10/phase0_PRM800K_20260709T151016Z",
+      "num_candidates": 136,
+      "num_decisions": 136,
+      "num_stage_actions": 46,
+      "stage_counts": {
+        "input": 10,
+        "judger": 12,
+        "planner": 12,
+        "solver": 12
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0001_start_10_n_10/phase0_PRM800K_20260709T151016Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0001_start_10_n_10/phase0_PRM800K_20260709T151016Z",
+      "num_candidates": 175,
+      "num_decisions": 175,
+      "num_stage_actions": 55,
+      "stage_counts": {
+        "input": 10,
+        "judger": 15,
+        "planner": 15,
+        "solver": 15
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0002_start_20_n_10/phase0_PRM800K_20260709T151016Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0002_start_20_n_10/phase0_PRM800K_20260709T151016Z",
+      "num_candidates": 162,
+      "num_decisions": 162,
+      "num_stage_actions": 52,
+      "stage_counts": {
+        "input": 10,
+        "judger": 14,
+        "planner": 14,
+        "solver": 14
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0003_start_30_n_10/phase0_PRM800K_20260709T151016Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0003_start_30_n_10/phase0_PRM800K_20260709T151016Z",
+      "num_candidates": 175,
+      "num_decisions": 175,
+      "num_stage_actions": 55,
+      "stage_counts": {
+        "input": 10,
+        "judger": 15,
+        "planner": 15,
+        "solver": 15
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0004_start_40_n_10/phase0_PRM800K_20260709T151016Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0004_start_40_n_10/phase0_PRM800K_20260709T151016Z",
+      "num_candidates": 136,
+      "num_decisions": 136,
+      "num_stage_actions": 46,
+      "stage_counts": {
+        "input": 10,
+        "judger": 12,
+        "planner": 12,
+        "solver": 12
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0005_start_50_n_10/phase0_PRM800K_20260709T151016Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0005_start_50_n_10/phase0_PRM800K_20260709T151016Z",
+      "num_candidates": 162,
+      "num_decisions": 162,
+      "num_stage_actions": 52,
+      "stage_counts": {
+        "input": 10,
+        "judger": 14,
+        "planner": 14,
+        "solver": 14
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0006_start_60_n_10/phase0_PRM800K_20260709T151016Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0006_start_60_n_10/phase0_PRM800K_20260709T151016Z",
+      "num_candidates": 136,
+      "num_decisions": 136,
+      "num_stage_actions": 46,
+      "stage_counts": {
+        "input": 10,
+        "judger": 12,
+        "planner": 12,
+        "solver": 12
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0007_start_70_n_10/phase0_PRM800K_20260709T151016Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0007_start_70_n_10/phase0_PRM800K_20260709T151016Z",
+      "num_candidates": 136,
+      "num_decisions": 136,
+      "num_stage_actions": 46,
+      "stage_counts": {
+        "input": 10,
+        "judger": 12,
+        "planner": 12,
+        "solver": 12
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0008_start_80_n_10/phase0_PRM800K_20260709T151712Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0008_start_80_n_10/phase0_PRM800K_20260709T151712Z",
+      "num_candidates": 149,
+      "num_decisions": 149,
+      "num_stage_actions": 49,
+      "stage_counts": {
+        "input": 10,
+        "judger": 13,
+        "planner": 13,
+        "solver": 13
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0009_start_90_n_10/phase0_PRM800K_20260709T151729Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0009_start_90_n_10/phase0_PRM800K_20260709T151729Z",
+      "num_candidates": 162,
+      "num_decisions": 162,
+      "num_stage_actions": 52,
+      "stage_counts": {
+        "input": 10,
+        "judger": 14,
+        "planner": 14,
+        "solver": 14
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0010_start_100_n_10/phase0_PRM800K_20260709T151729Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0010_start_100_n_10/phase0_PRM800K_20260709T151729Z",
+      "num_candidates": 136,
+      "num_decisions": 136,
+      "num_stage_actions": 46,
+      "stage_counts": {
+        "input": 10,
+        "judger": 12,
+        "planner": 12,
+        "solver": 12
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0011_start_110_n_10/phase0_PRM800K_20260709T151743Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0011_start_110_n_10/phase0_PRM800K_20260709T151743Z",
+      "num_candidates": 201,
+      "num_decisions": 201,
+      "num_stage_actions": 61,
+      "stage_counts": {
+        "input": 10,
+        "judger": 17,
+        "planner": 17,
+        "solver": 17
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0012_start_120_n_10/phase0_PRM800K_20260709T151758Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0012_start_120_n_10/phase0_PRM800K_20260709T151758Z",
+      "num_candidates": 136,
+      "num_decisions": 136,
+      "num_stage_actions": 46,
+      "stage_counts": {
+        "input": 10,
+        "judger": 12,
+        "planner": 12,
+        "solver": 12
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0013_start_130_n_10/phase0_PRM800K_20260709T151811Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0013_start_130_n_10/phase0_PRM800K_20260709T151811Z",
+      "num_candidates": 175,
+      "num_decisions": 175,
+      "num_stage_actions": 55,
+      "stage_counts": {
+        "input": 10,
+        "judger": 15,
+        "planner": 15,
+        "solver": 15
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0014_start_140_n_10/phase0_PRM800K_20260709T151831Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0014_start_140_n_10/phase0_PRM800K_20260709T151831Z",
+      "num_candidates": 188,
+      "num_decisions": 188,
+      "num_stage_actions": 58,
+      "stage_counts": {
+        "input": 10,
+        "judger": 16,
+        "planner": 16,
+        "solver": 16
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0015_start_150_n_10/phase0_PRM800K_20260709T151842Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0015_start_150_n_10/phase0_PRM800K_20260709T151842Z",
+      "num_candidates": 175,
+      "num_decisions": 175,
+      "num_stage_actions": 55,
+      "stage_counts": {
+        "input": 10,
+        "judger": 15,
+        "planner": 15,
+        "solver": 15
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0016_start_160_n_10/phase0_PRM800K_20260709T152335Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0016_start_160_n_10/phase0_PRM800K_20260709T152335Z",
+      "num_candidates": 149,
+      "num_decisions": 149,
+      "num_stage_actions": 49,
+      "stage_counts": {
+        "input": 10,
+        "judger": 13,
+        "planner": 13,
+        "solver": 13
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0017_start_170_n_10/phase0_PRM800K_20260709T152335Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0017_start_170_n_10/phase0_PRM800K_20260709T152335Z",
+      "num_candidates": 188,
+      "num_decisions": 188,
+      "num_stage_actions": 58,
+      "stage_counts": {
+        "input": 10,
+        "judger": 16,
+        "planner": 16,
+        "solver": 16
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0018_start_180_n_10/phase0_PRM800K_20260709T152346Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0018_start_180_n_10/phase0_PRM800K_20260709T152346Z",
+      "num_candidates": 149,
+      "num_decisions": 149,
+      "num_stage_actions": 49,
+      "stage_counts": {
+        "input": 10,
+        "judger": 13,
+        "planner": 13,
+        "solver": 13
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0019_start_190_n_10/phase0_PRM800K_20260709T152401Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0019_start_190_n_10/phase0_PRM800K_20260709T152401Z",
+      "num_candidates": 201,
+      "num_decisions": 201,
+      "num_stage_actions": 61,
+      "stage_counts": {
+        "input": 10,
+        "judger": 17,
+        "planner": 17,
+        "solver": 17
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0020_start_200_n_10/phase0_PRM800K_20260709T152528Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0020_start_200_n_10/phase0_PRM800K_20260709T152528Z",
+      "num_candidates": 175,
+      "num_decisions": 175,
+      "num_stage_actions": 55,
+      "stage_counts": {
+        "input": 10,
+        "judger": 15,
+        "planner": 15,
+        "solver": 15
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0021_start_210_n_10/phase0_PRM800K_20260709T152625Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0021_start_210_n_10/phase0_PRM800K_20260709T152625Z",
+      "num_candidates": 129,
+      "num_decisions": 129,
+      "num_stage_actions": 44,
+      "stage_counts": {
+        "input": 10,
+        "judger": 11,
+        "planner": 12,
+        "solver": 11
+      },
+      "num_predictions": 9,
+      "num_errors": 1
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0022_start_220_n_10/phase0_PRM800K_20260709T152705Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0022_start_220_n_10/phase0_PRM800K_20260709T152705Z",
+      "num_candidates": 201,
+      "num_decisions": 201,
+      "num_stage_actions": 61,
+      "stage_counts": {
+        "input": 10,
+        "judger": 17,
+        "planner": 17,
+        "solver": 17
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0023_start_230_n_10/phase0_PRM800K_20260709T152800Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0023_start_230_n_10/phase0_PRM800K_20260709T152800Z",
+      "num_candidates": 175,
+      "num_decisions": 175,
+      "num_stage_actions": 55,
+      "stage_counts": {
+        "input": 10,
+        "judger": 15,
+        "planner": 15,
+        "solver": 15
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0024_start_240_n_10/phase0_PRM800K_20260709T153007Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0024_start_240_n_10/phase0_PRM800K_20260709T153007Z",
+      "num_candidates": 162,
+      "num_decisions": 162,
+      "num_stage_actions": 52,
+      "stage_counts": {
+        "input": 10,
+        "judger": 14,
+        "planner": 14,
+        "solver": 14
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0025_start_250_n_10/phase0_PRM800K_20260709T153030Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0025_start_250_n_10/phase0_PRM800K_20260709T153030Z",
+      "num_candidates": 123,
+      "num_decisions": 123,
+      "num_stage_actions": 43,
+      "stage_counts": {
+        "input": 10,
+        "judger": 11,
+        "planner": 11,
+        "solver": 11
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0026_start_260_n_10/phase0_PRM800K_20260709T153045Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0026_start_260_n_10/phase0_PRM800K_20260709T153045Z",
+      "num_candidates": 136,
+      "num_decisions": 136,
+      "num_stage_actions": 46,
+      "stage_counts": {
+        "input": 10,
+        "judger": 12,
+        "planner": 12,
+        "solver": 12
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0027_start_270_n_10/phase0_PRM800K_20260709T153204Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0027_start_270_n_10/phase0_PRM800K_20260709T153204Z",
+      "num_candidates": 162,
+      "num_decisions": 162,
+      "num_stage_actions": 52,
+      "stage_counts": {
+        "input": 10,
+        "judger": 14,
+        "planner": 14,
+        "solver": 14
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0028_start_280_n_10/phase0_PRM800K_20260709T153428Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0028_start_280_n_10/phase0_PRM800K_20260709T153428Z",
+      "num_candidates": 123,
+      "num_decisions": 123,
+      "num_stage_actions": 43,
+      "stage_counts": {
+        "input": 10,
+        "judger": 11,
+        "planner": 11,
+        "solver": 11
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0029_start_290_n_10/phase0_PRM800K_20260709T153437Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0029_start_290_n_10/phase0_PRM800K_20260709T153437Z",
+      "num_candidates": 162,
+      "num_decisions": 162,
+      "num_stage_actions": 52,
+      "stage_counts": {
+        "input": 10,
+        "judger": 14,
+        "planner": 14,
+        "solver": 14
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0030_start_300_n_10/phase0_PRM800K_20260709T153525Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0030_start_300_n_10/phase0_PRM800K_20260709T153525Z",
+      "num_candidates": 214,
+      "num_decisions": 214,
+      "num_stage_actions": 64,
+      "stage_counts": {
+        "input": 10,
+        "judger": 18,
+        "planner": 18,
+        "solver": 18
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0031_start_310_n_10/phase0_PRM800K_20260709T153529Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0031_start_310_n_10/phase0_PRM800K_20260709T153529Z",
+      "num_candidates": 162,
+      "num_decisions": 162,
+      "num_stage_actions": 52,
+      "stage_counts": {
+        "input": 10,
+        "judger": 14,
+        "planner": 14,
+        "solver": 14
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0032_start_320_n_10/phase0_PRM800K_20260709T153831Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0032_start_320_n_10/phase0_PRM800K_20260709T153831Z",
+      "num_candidates": 188,
+      "num_decisions": 188,
+      "num_stage_actions": 58,
+      "stage_counts": {
+        "input": 10,
+        "judger": 16,
+        "planner": 16,
+        "solver": 16
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0033_start_330_n_10/phase0_PRM800K_20260709T153910Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0033_start_330_n_10/phase0_PRM800K_20260709T153910Z",
+      "num_candidates": 168,
+      "num_decisions": 168,
+      "num_stage_actions": 53,
+      "stage_counts": {
+        "input": 10,
+        "judger": 14,
+        "planner": 15,
+        "solver": 14
+      },
+      "num_predictions": 9,
+      "num_errors": 1
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0034_start_340_n_10/phase0_PRM800K_20260709T154003Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0034_start_340_n_10/phase0_PRM800K_20260709T154003Z",
+      "num_candidates": 123,
+      "num_decisions": 123,
+      "num_stage_actions": 43,
+      "stage_counts": {
+        "input": 10,
+        "judger": 11,
+        "planner": 11,
+        "solver": 11
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0035_start_350_n_10/phase0_PRM800K_20260709T154041Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0035_start_350_n_10/phase0_PRM800K_20260709T154041Z",
+      "num_candidates": 175,
+      "num_decisions": 175,
+      "num_stage_actions": 55,
+      "stage_counts": {
+        "input": 10,
+        "judger": 15,
+        "planner": 15,
+        "solver": 15
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0036_start_360_n_10/phase0_PRM800K_20260709T154335Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0036_start_360_n_10/phase0_PRM800K_20260709T154335Z",
+      "num_candidates": 162,
+      "num_decisions": 162,
+      "num_stage_actions": 52,
+      "stage_counts": {
+        "input": 10,
+        "judger": 14,
+        "planner": 14,
+        "solver": 14
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0037_start_370_n_10/phase0_PRM800K_20260709T154445Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0037_start_370_n_10/phase0_PRM800K_20260709T154445Z",
+      "num_candidates": 149,
+      "num_decisions": 149,
+      "num_stage_actions": 49,
+      "stage_counts": {
+        "input": 10,
+        "judger": 13,
+        "planner": 13,
+        "solver": 13
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0038_start_380_n_10/phase0_PRM800K_20260709T154604Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0038_start_380_n_10/phase0_PRM800K_20260709T154604Z",
+      "num_candidates": 149,
+      "num_decisions": 149,
+      "num_stage_actions": 49,
+      "stage_counts": {
+        "input": 10,
+        "judger": 13,
+        "planner": 13,
+        "solver": 13
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    },
+    {
+      "run_dir": "/home/yyh/MARL/mas_com_phase0/runs/phase0_MATH500_parallel_identity_migrated_20260709T151013Z/shard_0039_start_390_n_10/phase0_PRM800K_20260709T154722Z",
+      "source_run_dir": "/home/yyh/MARL/mas_com_phase0-prm/通信记录/通信记录/phase0_PRM800K_parallel_20260709T151013Z/shard_0039_start_390_n_10/phase0_PRM800K_20260709T154722Z",
+      "num_candidates": 162,
+      "num_decisions": 162,
+      "num_stage_actions": 52,
+      "stage_counts": {
+        "input": 10,
+        "judger": 14,
+        "planner": 14,
+        "solver": 14
+      },
+      "num_predictions": 10,
+      "num_errors": 0
+    }
+  ]
+}
